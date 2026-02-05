@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
+*.pyo
 db.sqlite3
+db.sqlite3-journal
 venv/
 .env
 media/
 *.log
+.DS_Store

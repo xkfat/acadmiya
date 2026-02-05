@@ -21,6 +21,8 @@ const Login = () => {
       const role = await login(email, password);
       setTimeout(() => {
         if (role === 'ETUDIANT') navigate('/etudiant/dashboard');
+              else if (role === 'ENSEIGNANT') navigate('/enseignant/dashboard');  // ← ADD THIS
+
         else if (role === 'ADMIN') navigate('/admin/validations');
         else if (role === 'DIRECTION') navigate('/direction/stats');
         else navigate('/');

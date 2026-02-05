@@ -10,7 +10,8 @@ import {
   Menu, 
   X, 
   BarChart3,
-  ChevronRight
+  ChevronRight,
+  BookOpen
 } from 'lucide-react';
 
 const Layout = () => {
@@ -78,6 +79,13 @@ const Layout = () => {
             </>
           )}
 
+          {user?.role === 'ENSEIGNANT' && (
+  <>
+    <MenuItem icon={LayoutDashboard} label="Dashboard" path="/enseignant/dashboard" />
+    <MenuItem icon={BookOpen} label="Mes Modules" path="/enseignant/modules" />
+  </>
+)}
+
           {/* ADMIN MENU */}
           {(user?.role === 'ADMIN' || user?.role === 'DIRECTION') && (
             <>
@@ -86,6 +94,8 @@ const Layout = () => {
             </>
           )}
         </nav>
+
+
 
         {/* Logout (Bottom) */}
         <div className="absolute bottom-0 w-full border-t border-gray-700 p-4">

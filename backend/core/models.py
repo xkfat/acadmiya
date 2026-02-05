@@ -179,6 +179,11 @@ class Inscription(models.Model):
         verbose_name="Validé par"
     )
     
+    photo_identite = models.ImageField(upload_to='inscriptions/photos/', blank=True)
+    releve_notes = models.FileField(upload_to='inscriptions/releves/', blank=True)
+    certificat_scolarite = models.FileField(upload_to='inscriptions/certificats/', blank=True)
+
+
     validation_date = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True, null=True, verbose_name="Motif de rejet")
     
@@ -194,3 +199,94 @@ class Inscription(models.Model):
     
     def __str__(self):
         return f"{self.student.username} → {self.filiere.code} ({self.academic_year}) [{self.status}]"
+
+
+# ============================================
+# NOTE MODEL (GRADES)
+# ============================================
+class Note(models.Model):
+    """
+    Stores grades for students in specific modules
+    """
+    # Which student?
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': 'ETUDIANT'},
+        related_name='notes',
+        verbose_name="Étudiant"
+    )
+    
+    # Which module?
+    module = models.ForeignKey(
+        'Module',
+        on_delete=models.CASCADE,
+        related_name='notes',
+        verbose_name="Module"
+    )
+    
+    # Academic year
+    academic_year = models.CharField(
+        max_length=9,
+        verbose_name="Année Universitaire",
+        help_text="Format: 2024-2025"
+    )
+    
+    # Grades
+    note_controle = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        verbose_name="Note Contrôle",
+        help_text="Note sur 20"
+    )
+    
+    note_examen = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        verbose_name="Note Examen",
+        help_text="Note sur 20"
+    )
+    
+    note_finale = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        verbose_name="Note Finale",
+        help_text="Moyenne calculée"
+    )
+    
+    # Who entered/modified this grade?
+    saisie_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={'role': 'ENSEIGNANT'},
+        related_name='notes_saisies',
+        verbose_name="Saisi par"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Note"
+        verbose_name_plural = "Notes"
+        ordering = ['-academic_year', 'module', 'student']
+        unique_together = ['student', 'module', 'academic_year']
+    
+    def save(self, *args, **kwargs):
+        """Auto-calculate note_finale"""
+        if self.note_controle is not None and self.note_examen is not None:
+            # You can adjust the formula (e.g., 40% controle, 60% examen)
+            self.note_finale = (self.note_controle * 0.4) + (self.note_examen * 0.6)
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.student.username} - {self.module.code} ({self.academic_year})"

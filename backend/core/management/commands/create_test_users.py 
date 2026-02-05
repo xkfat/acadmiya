@@ -1,0 +1,161 @@
+"""
+Management command to quickly create test users
+Usage: python manage.py create_test_users
+"""
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+from core.models import Departement
+
+User = get_user_model()
+
+
+class Command(BaseCommand):
+    help = 'Create test users for development (admin, student, teacher, direction)'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset',
+            action='store_true',
+            help='Delete existing test users before creating new ones',
+        )
+
+    def handle(self, *args, **options):
+        test_usernames = [
+            'admin_test', 'student_test', 'teacher_test', 'direction_test',
+            'chef_info', 'chef_gc', 'etudiant1', 'etudiant2'
+        ]
+
+        # Reset if requested
+        if options['reset']:
+            deleted_count = User.objects.filter(username__in=test_usernames).delete()[0]
+            self.stdout.write(
+                self.style.WARNING(f'🗑️  Deleted {deleted_count} existing test users')
+            )
+
+        created_users = []
+
+        # 1. Create Direction user
+        direction, created = User.objects.get_or_create(
+            username='direction_test',
+            defaults={
+                'email': 'direction@test.ma',
+                'first_name': 'Ahmed',
+                'last_name': 'Directeur',
+                'role': 'DIRECTION',
+                'matricule': 'DIR001'
+            }
+        )
+        if created:
+            direction.set_password('test123')
+            direction.save()
+            created_users.append('direction_test (DIRECTION)')
+
+        # 2. Create Admin users (Chefs de département)
+        admin_info, created = User.objects.get_or_create(
+            username='admin_test',
+            defaults={
+                'email': 'admin@test.ma',
+                'first_name': 'Mohammed',
+                'last_name': 'Admin',
+                'role': 'ADMIN',
+                'matricule': 'ADM001'
+            }
+        )
+        if created:
+            admin_info.set_password('test123')
+            admin_info.save()
+            created_users.append('admin_test (ADMIN)')
+
+        chef_info, created = User.objects.get_or_create(
+            username='chef_info',
+            defaults={
+                'email': 'chef.info@test.ma',
+                'first_name': 'Karim',
+                'last_name': 'Chef INFO',
+                'role': 'ADMIN',
+                'matricule': 'ADM002'
+            }
+        )
+        if created:
+            chef_info.set_password('test123')
+            chef_info.save()
+            created_users.append('chef_info (ADMIN)')
+
+        # 3. Create Teacher
+        teacher, created = User.objects.get_or_create(
+            username='teacher_test',
+            defaults={
+                'email': 'teacher@test.ma',
+                'first_name': 'Fatima',
+                'last_name': 'Professeur',
+                'role': 'ENSEIGNANT',
+                'matricule': 'ENS001'
+            }
+        )
+        if created:
+            teacher.set_password('test123')
+            teacher.save()
+            created_users.append('teacher_test (ENSEIGNANT)')
+
+        # 4. Create Students
+        student1, created = User.objects.get_or_create(
+            username='student_test',
+            defaults={
+                'email': 'student@test.ma',
+                'first_name': 'Youssef',
+                'last_name': 'Étudiant',
+                'role': 'ETUDIANT',
+                'cne': 'R123456789'
+            }
+        )
+        if created:
+            student1.set_password('test123')
+            student1.save()
+            created_users.append('student_test (ETUDIANT)')
+
+        student2, created = User.objects.get_or_create(
+            username='etudiant1',
+            defaults={
+                'email': 'etudiant1@test.ma',
+                'first_name': 'Sara',
+                'last_name': 'Benali',
+                'role': 'ETUDIANT',
+                'cne': 'R987654321'
+            }
+        )
+        if created:
+            student2.set_password('test123')
+            student2.save()
+            created_users.append('etudiant1 (ETUDIANT)')
+
+        student3, created = User.objects.get_or_create(
+            username='etudiant2',
+            defaults={
+                'email': 'etudiant2@test.ma',
+                'first_name': 'Ali',
+                'last_name': 'Tazi',
+                'role': 'ETUDIANT',
+                'cne': 'R555555555'
+            }
+        )
+        if created:
+            student3.set_password('test123')
+            student3.save()
+            created_users.append('etudiant2 (ETUDIANT)')
+
+        # Summary
+        if created_users:
+            self.stdout.write(self.style.SUCCESS(f'\n✅ Created {len(created_users)} test users:'))
+            for user in created_users:
+                self.stdout.write(f'   • {user}')
+            self.stdout.write(self.style.SUCCESS('\n🔑 All passwords: test123'))
+        else:
+            self.stdout.write(self.style.WARNING('⚠️  All test users already exist'))
+
+        self.stdout.write(
+            self.style.SUCCESS('\n📋 Login credentials:')
+        )
+        self.stdout.write('   Direction: direction@test.ma / test123')
+        self.stdout.write('   Admin: admin@test.ma / test123')
+        self.stdout.write('   Teacher: teacher@test.ma / test123')
+        self.stdout.write('   Student: student@test.ma / test123')

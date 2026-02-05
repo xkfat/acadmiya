@@ -2,8 +2,9 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from .serializers import RegisterSerializer, UserSerializer, EmailLoginSerializer
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import AllowAny
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -37,6 +38,7 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])  # ← ADD THIS LINE
 def login_view(request):
     serializer = EmailLoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
