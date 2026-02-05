@@ -1,24 +1,45 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-// Create dummy files for these imports first to avoid errors!
-// import Login from './pages/auth/Login'; 
-// import StudentDashboard from './pages/espace-etudiant/Dashboard';
+import { AuthProvider } from './context/AuthContext';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute'; // Import it
+import Login from './pages/auth/Login';
+
+// Mock Pages
+const StudentDash = () => <h1>Dashboard Etudiant</h1>;
+const AdminDash = () => <h1>Admin Validation</h1>;
+const StatsDash = () => <h1>Direction Stats</h1>;
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="/login" element={<h1>Page Login (Person 2)</h1>} />
-        <Route path="/register" element={<h1>Page Inscription (Person 2)</h1>} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        {/* Protected Routes (Placeholder) */}
-        <Route path="/etudiant/*" element={<h1>Espace Étudiant (Person 3)</h1>} />
-        <Route path="/enseignant/*" element={<h1>Espace Enseignant (Person 3)</h1>} />
-        <Route path="/admin/*" element={<h1>Espace Admin (Person 4)</h1>} />
-        <Route path="/direction/*" element={<h1>Espace Direction (Person 5)</h1>} />
-      </Routes>
-    </BrowserRouter>
+          {/* WRAPPER: Layout (Navbar/Sidebar) */}
+          <Route element={<Layout />}>
+            <Route path="/" element={<h1>Accueil</h1>} />
+
+            {/* SECURITY: Only Students */}
+            <Route element={<ProtectedRoute allowedRoles={['ETUDIANT']} />}>
+              <Route path="/etudiant/dashboard" element={<StudentDash />} />
+            </Route>
+
+            {/* SECURITY: Only Admins */}
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'DIRECTION']} />}>
+              <Route path="/admin/validations" element={<AdminDash />} />
+            </Route>
+
+            {/* SECURITY: Only Direction */}
+            <Route element={<ProtectedRoute allowedRoles={['DIRECTION', 'ADMIN']} />}>
+              <Route path="/direction/stats" element={<StatsDash />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
