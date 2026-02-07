@@ -3,8 +3,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS
 from django.utils import timezone
 from django.db.models import Q
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, authentication_classes
 from django.db.models import Count
+from users.models import User
+from rest_framework_simplejwt.authentication import JWTAuthentication  # <--- Critical for 401 fix
+from django.db.models import Count
+from django.db.models.functions import TruncMonth
+from django.contrib.auth import get_user_model
+from django.db.models import Sum # <--- N'oublie pas cet import en haut !
+from django.db.models import Avg, F
 
 
 from .models import Departement, Filiere, Module, Inscription, Note
@@ -21,7 +28,7 @@ from .serializers import (
     StudentGradeSerializer,
 )
 
-
+User = get_user_model()
 # ============================================
 # CUSTOM PERMISSIONS (FIXED!)
 # ============================================
@@ -255,24 +262,58 @@ class InscriptionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
 
+
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated]) # Ou AllowAny pour tester
 def dashboard_statistics(request):
-    """Statistics for direction dashboard"""
-    stats = {
-        'total_inscriptions': Inscription.objects.count(),
-        'pending': Inscription.objects.filter(status='PENDING').count(),
-        'validated': Inscription.objects.filter(status='VALIDATED').count(),
-        'rejected': Inscription.objects.filter(status='REJECTED').count(),
-        'total_students': User.objects.filter(role='ETUDIANT').count(),
-        'by_filiere': Inscription.objects.filter(status='VALIDATED')
-            .values('filiere__name')
-            .annotate(count=Count('id'))
-    }
-    return Response(stats)
+    
+    # 1. CHIFFRES DE BASE
+    total_students = User.objects.filter(role='ETUDIANT').count()
+    total_profs = User.objects.filter(role='ENSEIGNANT').count()
+    pending_count = Inscription.objects.filter(status='PENDING').count()
+    
+    # 2. CALCUL DU TAUX DE REMPLISSAGE (Occupancy)
+    # Somme de la capacité de toutes les filières
+    total_capacity = Filiere.objects.aggregate(Sum('capacity'))['capacity__sum'] or 1
+    # Nombre d'inscriptions validées (étudiants réellement assis en classe)
+    active_students = Inscription.objects.filter(status='VALIDATED').count()
+    
+    occupancy_rate = round((active_students / total_capacity) * 100, 1) if total_capacity > 0 else 0
+    
+    # 3. CALCUL DU TAUX D'ADMISSION (Selectivity)
+    total_applications = Inscription.objects.count() or 1
+    admission_rate = round((active_students / total_applications) * 100, 1)
 
+    # 4. CONSTRUCTION DE LA RÉPONSE
+    kpi_data = [
+        # Carte 1 : Volume Étudiants
+        {"label": "Total Étudiants", "value": total_students, "icon": "Users", "color": "blue"},
+        
+        # Carte 2 : Bottleneck (Urgence)
+        {"label": "Dossiers en Attente", "value": pending_count, "icon": "Clock", "color": "amber"},
+        
+        # Carte 3 : Performance (Nouveau !)
+        {"label": "Taux de Remplissage", "value": f"{occupancy_rate}%", "icon": "Maximize", "color": "emerald"},
+        
+        # Carte 4 : Sélectivité (Nouveau !)
+        {"label": "Taux d'Admission", "value": f"{admission_rate}%", "icon": "Filter", "color": "purple"},
+    ]
 
+    # ... (Garde le reste du code pour enrollment_trends et department_dist) ...
+    
+    # Reste du code inchangé pour les graphiques
+    trends_query = Inscription.objects.filter(status='VALIDATED').annotate(month=TruncMonth('validation_date')).values('month').annotate(count=Count('id')).order_by('month')
+    enrollment_trends = [{"name": item['month'].strftime('%b'), "count": item['count']} for item in trends_query if item['month']]
+    
+    dept_query = Inscription.objects.filter(status='VALIDATED').values('filiere__departement__name').annotate(value=Count('id'))
+    department_dist = [{"name": item['filiere__departement__name'], "value": item['value']} for item in dept_query]
 
+    return Response({
+        "kpi": kpi_data,
+        "enrollment_trends": enrollment_trends,
+        "department_dist": department_dist
+    })
 
 
 
@@ -476,3 +517,55 @@ class NoteViewSet(viewsets.ModelViewSet):
             'updated_count': updated_count,
             'message': f'{updated_count} notes mises à jour avec succès'
         })
+    
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def academic_performance(request):
+    # 1. Moyenne Générale de l'École
+    global_avg = Note.objects.aggregate(Avg('note_finale'))['note_finale__avg'] or 0
+    
+    # 2. Taux de Réussite (Notes >= 10)
+    total_notes = Note.objects.count() or 1
+    passing_notes = Note.objects.filter(note_finale__gte=10).count()
+    success_rate = round((passing_notes / total_notes) * 100, 1)
+
+    # 3. Performance par Filière (Pour le graphique)
+    # On groupe par Filière et on fait la moyenne des notes finales
+    perf_by_filiere = (
+        Note.objects
+        .values('module__filiere__name')
+        .annotate(moyenne=Avg('note_finale'))
+        .order_by('-moyenne')
+    )
+    
+    chart_data = [
+        {"name": item['module__filiere__name'], "value": round(item['moyenne'], 2)} 
+        for item in perf_by_filiere if item['module__filiere__name']
+    ]
+
+    # 4. Top 5 Étudiants (Majors de Promo)
+    # On calcule la moyenne de chaque étudiant
+    top_students = (
+        Note.objects
+        .values('student__first_name', 'student__last_name', 'module__filiere__name')
+        .annotate(general_avg=Avg('note_finale'))
+        .order_by('-general_avg')[:5] # Les 5 meilleurs
+    )
+
+    top_list = [
+        {
+            "name": f"{s['student__last_name'].upper()} {s['student__first_name']}",
+            "filiere": s['module__filiere__name'],
+            "average": round(s['general_avg'], 2)
+        }
+        for s in top_students
+    ]
+
+    return Response({
+        "global_average": round(global_avg, 2),
+        "success_rate": success_rate,
+        "chart_data": chart_data,
+        "top_students": top_list
+    })

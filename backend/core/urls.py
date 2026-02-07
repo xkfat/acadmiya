@@ -7,6 +7,7 @@ from .views import (
     InscriptionViewSet,
     dashboard_statistics,
     NoteViewSet,
+    academic_performance,
 )
 
 router = DefaultRouter()
@@ -18,6 +19,6 @@ router.register(r'notes', NoteViewSet, basename='note')  # ← Add this
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('statistics/dashboard/', dashboard_statistics, name='stats'),
-
+    path('admin/dashboard/', dashboard_statistics, name='stats'),
+path('admin/performance/', academic_performance, name='academic_performance'),
 ]

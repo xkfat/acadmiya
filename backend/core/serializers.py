@@ -143,23 +143,41 @@ class ModuleSerializer(serializers.ModelSerializer):
 # INSCRIPTION SERIALIZERS (GOVERNANCE)
 # ============================================
 class InscriptionSerializer(serializers.ModelSerializer):
+    # 1. Existing Nested Data (Keep these for Student/Teacher Dashboards)
     student_details = UserLightSerializer(source='student', read_only=True)
     filiere_details = FiliereListSerializer(source='filiere', read_only=True)
     validated_by_details = UserLightSerializer(source='validated_by', read_only=True)
     
+    # 2. NEW FLATTENED DATA (Required for Director & Admin Tables)
+    student_name = serializers.SerializerMethodField()
+    filiere_name = serializers.ReadOnlyField(source='filiere.name')
+    departement_name = serializers.ReadOnlyField(source='filiere.departement.name')
+    validator_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Inscription
         fields = [
-            'id', 'student', 'student_details',
-            'filiere', 'filiere_details',
+            'id', 
+            'student', 'student_details', 'student_name', # <--- Added student_name
+            'filiere', 'filiere_details', 'filiere_name', 'departement_name', # <--- Added names
             'academic_year', 'status',
-            'validated_by', 'validated_by_details',
+            'validated_by', 'validated_by_details', 'validator_name', # <--- Added validator_name
             'validation_date', 'rejection_reason',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'validated_by', 'validation_date']
 
+    # 3. Helper Methods to Format Names safely
+    def get_student_name(self, obj):
+        if obj.student:
+            return f"{obj.student.last_name.upper()} {obj.student.first_name}"
+        return "Inconnu"
 
+    def get_validator_name(self, obj):
+        if obj.validated_by:
+            return f"{obj.validated_by.last_name.upper()} {obj.validated_by.first_name}"
+        return "-"
+    
 class InscriptionCreateSerializer(serializers.ModelSerializer):
     """Simplified serializer for students creating inscriptions"""
     class Meta:
